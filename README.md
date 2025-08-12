@@ -1,6 +1,8 @@
 # DNA Visualization & Analysis System
 
 A comprehensive bioinformatics tool for 3D DNA visualization and sequence analysis with interactive features for mutation simulation and annotation.
+<img width="1865" height="887" alt="View" src="https://github.com/user-attachments/assets/74d9c274-6ade-4377-9a65-5c781f843919" />
+
 
 ## 🧬 Features
 
