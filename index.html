@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DNA Visualization & Analysis System</title>
+
+    <style>
+      /* --- Base & Reset --- */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(
+          135deg,
+          #0a1929 0%,
+          #1e3a5f 50%,
+          #2d5a87 100%
+        );
+        color: #ffffff;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* --- Flexible Layout Container --- */
+      .main-container {
+        display: flex;
+        flex: 1;
+        min-height: 0; /* Important for flex children */
+        position: relative;
+      }
+
+      /* --- Resizable Sidebar --- */
+      .sidebar {
+        width: 380px;
+        min-width: 280px;
+        max-width: 50vw;
+        background: rgba(15, 23, 42, 0.95);
+        border-right: 1px solid rgba(59, 130, 246, 0.3);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        transition: width 0.3s ease;
+      }
+
+      .sidebar.collapsed {
+        width: 60px;
+        min-width: 60px;
+      }
+
+      .sidebar-header {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+        background: rgba(30, 41, 59, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 60px;
+      }
+
+      .sidebar-title {
+        color: #60a5fa;
+        font-size: 1.2rem;
+        font-weight: 600;
+        transition: opacity 0.3s ease;
+      }
+
+      .sidebar.collapsed .sidebar-title {
+        opacity: 0;
+        width: 0;
+        overflow: hidden;
+      }
+
+      .toggle-btn {
+        background: rgba(59, 130, 246, 0.2);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        color: #60a5fa;
+        padding: 0.5rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        flex-shrink: 0;
+      }
+
+      .toggle-btn:hover {
+        background: rgba(59, 130, 246, 0.4);
+      }
+
+      .sidebar-content {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 1rem;
+        transition: opacity 0.3s ease;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(59, 130, 246, 0.4) rgba(15, 23, 42, 0.2);
+      }
+
+      .sidebar.collapsed .sidebar-content {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* --- Resize Handle --- */
+      .resize-handle {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: transparent;
+        cursor: ew-resize;
+        z-index: 10;
+        transition: background 0.2s ease;
+      }
+
+      .resize-handle:hover,
+      .resize-handle.dragging {
+        background: rgba(59, 130, 246, 0.5);
+      }
+
+      /* --- Main Visualization Area --- */
+      .visualization-container {
+        flex: 1;
+        position: relative;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .visualization-header {
+        height: 50px;
+        background: rgba(15, 23, 42, 0.8);
+        border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 1rem;
+        flex-shrink: 0;
+      }
+
+      .view-controls {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .view-btn {
+        background: rgba(59, 130, 246, 0.2);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        color: #60a5fa;
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.85rem;
+      }
+
+      .view-btn:hover,
+      .view-btn.active {
+        background: rgba(59, 130, 246, 0.4);
+      }
+
+      .visualization-area {
+        flex: 1;
+        position: relative;
+        min-height: 0;
+      }
+
+      #threejs-container {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+
+      /* --- Panel Sections --- */
+      .panel-section {
+        margin-bottom: 1.5rem;
+        background: rgba(30, 41, 59, 0.6);
+        border-radius: 12px;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        transition: all 0.3s ease;
+      }
+
+      .panel-section:hover {
+        border-color: rgba(59, 130, 246, 0.4);
+      }
+
+      .section-header {
+        padding: 1rem;
+        border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: background 0.3s ease;
+      }
+
+      .section-header:hover {
+        background: rgba(59, 130, 246, 0.1);
+      }
+
+      .section-header h3 {
+        color: #60a5fa;
+        font-size: 1rem;
+        font-weight: 600;
+        margin: 0;
+      }
+
+      .collapse-icon {
+        transition: transform 0.3s ease;
+        color: #94a3b8;
+        font-size: 0.8rem;
+      }
+
+      .panel-section.collapsed .collapse-icon {
+        transform: rotate(-90deg);
+      }
+
+      .section-content {
+        padding: 1rem;
+        transition: all 0.3s ease;
+        overflow: hidden;
+      }
+
+      .panel-section.collapsed .section-content {
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+      }
+
+      /* --- Form Controls --- */
+      .file-upload {
+        position: relative;
+        width: 100%;
+        margin-bottom: 1rem;
+      }
+
+      .file-upload input[type="file"] {
+        display: none;
+      }
+
+      .file-upload-label {
+        display: block;
+        padding: 0.75rem;
+        background: linear-gradient(45deg, #3b82f6, #1d4ed8);
+        color: white;
+        text-align: center;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+        font-weight: 500;
+        font-size: 0.9rem;
+      }
+
+      .file-upload-label:hover {
+        background: linear-gradient(45deg, #1d4ed8, #1e40af);
+      }
+
+      .textarea-container {
+        position: relative;
+        margin: 1rem 0;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 100px;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 8px;
+        color: #ffffff;
+        padding: 0.75rem;
+        font-family: "Courier New", monospace;
+        font-size: 0.85rem;
+        resize: vertical;
+        transition: border-color 0.3s ease;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: rgba(59, 130, 246, 0.6);
+      }
+
+      .btn {
+        padding: 0.75rem 1.5rem;
+        background: linear-gradient(45deg, #059669, #047857);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        width: 100%;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      .btn:hover {
+        background: linear-gradient(45deg, #047857, #065f46);
+        transform: translateY(-1px);
+      }
+
+      .btn:active {
+        transform: translateY(0);
+      }
+
+      .btn-secondary {
+        background: linear-gradient(45deg, #dc2626, #b91c1c);
+      }
+
+      .btn-secondary:hover {
+        background: linear-gradient(45deg, #b91c1c, #991b1b);
+      }
+
+      .btn-group {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+      }
+
+      /* --- Statistics Grid --- */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 0.75rem;
+        margin: 1rem 0;
+      }
+
+      .stat-item {
+        background: rgba(59, 130, 246, 0.1);
+        padding: 0.75rem;
+        border-radius: 8px;
+        text-align: center;
+        transition: all 0.3s ease;
+      }
+
+      .stat-item:hover {
+        background: rgba(59, 130, 246, 0.2);
+        transform: translateY(-2px);
+      }
+
+      .stat-value {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #60a5fa;
+      }
+
+      .stat-label {
+        font-size: 0.8rem;
+        color: #94a3b8;
+        margin-top: 0.25rem;
+      }
+
+      /* --- Control Groups --- */
+      .control-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.5rem 1rem;
+        align-items: center;
+        margin: 1rem 0;
+      }
+
+      .control-grid label {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        font-weight: 500;
+      }
+
+      .control-grid input,
+      .control-grid select {
+        padding: 0.5rem;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 6px;
+        color: #ffffff;
+        font-size: 0.85rem;
+        transition: border-color 0.3s ease;
+      }
+
+      .control-grid input:focus,
+      .control-grid select:focus {
+        outline: none;
+        border-color: rgba(59, 130, 246, 0.6);
+      }
+
+      /* --- Overlays --- */
+      .floating-controls {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: rgba(15, 23, 42, 0.9);
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        backdrop-filter: blur(10px);
+        z-index: 100;
+        min-width: 200px;
+        transition: all 0.3s ease;
+      }
+
+      .floating-controls.collapsed {
+        transform: translateX(calc(100% - 40px));
+      }
+
+      .floating-controls h4 {
+        color: #60a5fa;
+        margin-bottom: 1rem;
+        font-size: 0.95rem;
+      }
+
+      .range-control {
+        margin-bottom: 1rem;
+      }
+
+      .range-control:last-child {
+        margin-bottom: 0;
+      }
+
+      .range-control label {
+        display: block;
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .range-control input[type="range"] {
+        width: 100%;
+        margin: 0;
+      }
+
+      .legend {
+        position: absolute;
+        bottom: 1rem;
+        left: 1rem;
+        background: rgba(15, 23, 42, 0.9);
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        backdrop-filter: blur(10px);
+        z-index: 100;
+        transition: all 0.3s ease;
+      }
+
+      .legend.collapsed {
+        transform: translateY(calc(100% - 40px));
+      }
+
+      .legend h4 {
+        color: #60a5fa;
+        margin-bottom: 0.75rem;
+        font-size: 0.95rem;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+      }
+
+      .legend-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .legend-color {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        margin-right: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      /* --- Loading Indicator --- */
+      .loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(15, 23, 42, 0.95);
+        padding: 2rem;
+        border-radius: 12px;
+        text-align: center;
+        z-index: 1000;
+        border: 1px solid rgba(59, 130, 246, 0.3);
+      }
+
+      .spinner {
+        border: 3px solid rgba(59, 130, 246, 0.3);
+        border-top: 3px solid #3b82f6;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* --- Annotation List --- */
+      .annotation-list {
+        max-height: 150px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(59, 130, 246, 0.4) rgba(15, 23, 42, 0.2);
+      }
+
+      .annotation-item {
+        background: rgba(59, 130, 246, 0.1);
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        border-left: 3px solid #3b82f6;
+        transition: all 0.3s ease;
+      }
+
+      .annotation-item:hover {
+        background: rgba(59, 130, 246, 0.2);
+        transform: translateX(2px);
+      }
+
+      .annotation-item:last-child {
+        margin-bottom: 0;
+      }
+
+      /* --- Status Bar --- */
+      .status-bar {
+        height: 30px;
+        background: rgba(15, 23, 42, 0.9);
+        border-top: 1px solid rgba(59, 130, 246, 0.3);
+        display: flex;
+        align-items: center;
+        padding: 0 1rem;
+        font-size: 0.8rem;
+        color: #94a3b8;
+        flex-shrink: 0;
+      }
+
+      .status-item {
+        margin-right: 1rem;
+      }
+
+      /* --- Responsive Design --- */
+      @media (max-width: 1200px) {
+        .sidebar {
+          width: 320px;
+          min-width: 280px;
+        }
+
+        .floating-controls {
+          min-width: 180px;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .main-container {
+          flex-direction: column;
+        }
+
+        .sidebar {
+          width: 100%;
+          min-width: auto;
+          max-width: none;
+          height: 40vh;
+          min-height: 200px;
+          border-right: none;
+          border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .sidebar.collapsed {
+          height: 60px;
+          width: 100%;
+        }
+
+        .resize-handle {
+          display: none;
+        }
+
+        .visualization-container {
+          height: 60vh;
+        }
+
+        .floating-controls,
+        .legend {
+          position: relative;
+          margin: 0.5rem;
+          transform: none !important;
+        }
+
+        .floating-controls {
+          order: 1;
+        }
+
+        .legend {
+          order: 2;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .sidebar-header {
+          padding: 0.75rem;
+        }
+
+        .sidebar-content {
+          padding: 0.75rem;
+        }
+
+        .visualization-header {
+          height: 40px;
+          padding: 0 0.75rem;
+        }
+
+        .view-btn {
+          padding: 0.3rem 0.6rem;
+          font-size: 0.8rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .floating-controls,
+        .legend {
+          margin: 0.25rem;
+          padding: 0.75rem;
+        }
+
+        .btn {
+          padding: 0.6rem 1rem;
+          font-size: 0.85rem;
+        }
+      }
+
+      @media (max-width: 400px) {
+        .sidebar-title {
+          font-size: 1rem;
+        }
+
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .stat-value {
+          font-size: 1rem;
+        }
+
+        .control-grid {
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+        }
+
+        .btn-group {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* --- Scrollbar Styling --- */
+      .sidebar-content::-webkit-scrollbar,
+      .annotation-list::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .sidebar-content::-webkit-scrollbar-track,
+      .annotation-list::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.2);
+      }
+
+      .sidebar-content::-webkit-scrollbar-thumb,
+      .annotation-list::-webkit-scrollbar-thumb {
+        background: rgba(59, 130, 246, 0.4);
+        border-radius: 3px;
+      }
+
+      .sidebar-content::-webkit-scrollbar-thumb:hover,
+      .annotation-list::-webkit-scrollbar-thumb:hover {
+        background: rgba(59, 130, 246, 0.6);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-container">
+      <!-- Resizable Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="resize-handle" id="resizeHandle"></div>
+
+        <header class="sidebar-header">
+          <h1 class="sidebar-title">DNA Analyzer</h1>
+          <button class="toggle-btn" id="toggleSidebar" title="Toggle Sidebar">
+            <span>◀</span>
+          </button>
+        </header>
+
+        <main class="sidebar-content">
+          <!-- File Upload Section -->
+          <section class="panel-section">
+            <div class="section-header" onclick="toggleSection(this)">
+              <h3>Load DNA Sequence</h3>
+              <span class="collapse-icon">▼</span>
+            </div>
+            <div class="section-content">
+              <div class="file-upload">
+                <input
+                  type="file"
+                  id="fileInput"
+                  accept=".fasta,.fa,.gbk,.gb,.txt"
+                />
+                <label for="fileInput" class="file-upload-label">
+                  📁 Upload FASTA/GenBank
+                </label>
+              </div>
+
+              <div
+                style="
+                  text-align: center;
+                  margin: 1rem 0;
+                  color: #94a3b8;
+                  font-size: 0.85rem;
+                "
+              >
+                or
+              </div>
+
+              <div class="textarea-container">
+                <textarea
+                  id="sequenceInput"
+                  placeholder="Paste DNA sequence here (A, T, C, G only)..."
+                ></textarea>
+              </div>
+
+              <button class="btn" onclick="loadSequence()">
+                Load Sequence
+              </button>
+              <button class="btn btn-secondary" onclick="loadSampleData()">
+                Load Sample Data
+              </button>
+            </div>
+          </section>
+
+          <!-- Analysis Section -->
+          <section class="panel-section">
+            <div class="section-header" onclick="toggleSection(this)">
+              <h3>Analysis Results</h3>
+              <span class="collapse-icon">▼</span>
+            </div>
+            <div class="section-content">
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <div class="stat-value" id="lengthStat">0</div>
+                  <div class="stat-label">Length (bp)</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="gcStat">0%</div>
+                  <div class="stat-label">GC Content</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="orfStat">0</div>
+                  <div class="stat-label">ORFs Found</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-value" id="cpgStat">0</div>
+                  <div class="stat-label">CpG Islands</div>
+                </div>
+              </div>
+              <button class="btn" onclick="analyzeSequence()">
+                🔬 Run Analysis
+              </button>
+            </div>
+          </section>
+
+          <!-- Mutation Section -->
+          <section class="panel-section">
+            <div class="section-header" onclick="toggleSection(this)">
+              <h3>Mutations</h3>
+              <span class="collapse-icon">▼</span>
+            </div>
+            <div class="section-content">
+              <div class="control-grid">
+                <label>Type:</label>
+                <select id="mutationType">
+                  <option value="SNP">SNP</option>
+                  <option value="insertion">Insertion</option>
+                  <option value="deletion">Deletion</option>
+                </select>
+
+                <label>Position:</label>
+                <input
+                  type="number"
+                  id="mutationPosition"
+                  min="0"
+                  placeholder="0"
+                />
+
+                <label>New Base:</label>
+                <select id="newBase">
+                  <option value="A">A</option>
+                  <option value="T">T</option>
+                  <option value="C">C</option>
+                  <option value="G">G</option>
+                </select>
+              </div>
+
+              <div class="btn-group">
+                <button class="btn" onclick="applyMutation()">Apply</button>
+                <button class="btn btn-secondary" onclick="resetMutations()">
+                  Reset
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Annotations -->
+          <section class="panel-section">
+            <div class="section-header" onclick="toggleSection(this)">
+              <h3>Annotations</h3>
+              <span class="collapse-icon">▼</span>
+            </div>
+            <div class="section-content">
+              <div class="annotation-list" id="annotationList">
+                <p
+                  style="
+                    color: #94a3b8;
+                    font-size: 0.85rem;
+                    text-align: center;
+                    padding: 1rem;
+                  "
+                >
+                  Run analysis to see annotations
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <!-- Export Section -->
+          <section class="panel-section">
+            <div class="section-header" onclick="toggleSection(this)">
+              <h3>Export Options</h3>
+              <span class="collapse-icon">▼</span>
+            </div>
+            <div class="section-content">
+              <div class="btn-group">
+                <button class="btn" onclick="exportPNG()">🖼️ PNG</button>
+                <button class="btn" onclick="exportGLTF()">📦 3D</button>
+                <button class="btn" onclick="exportFASTA()">📄 FASTA</button>
+                <button class="btn" onclick="exportData()">📊 Data</button>
+              </div>
+            </div>
+          </section>
+        </main>
+      </aside>
+
+      <!-- Main Visualization Area -->
+      <main class="visualization-container">
+        <header class="visualization-header">
+          <div class="view-controls">
+            <button class="view-btn active" onclick="setView('3d')">
+              3D View
+            </button>
+            <button class="view-btn" onclick="setView('2d')">2D Plot</button>
+            <button class="view-btn" onclick="setView('sequence')">
+              Sequence
+            </button>
+          </div>
+          <div class="view-controls">
+            <button class="view-btn" onclick="toggleFullscreen()">⛶</button>
+            <button class="view-btn" onclick="resetCamera()">🎯</button>
+          </div>
+        </header>
+
+        <div class="visualization-area">
+          <div id="threejs-container"></div>
+
+          <!-- Floating 3D Controls -->
+          <div class="floating-controls" id="floatingControls">
+            <button
+              class="toggle-btn"
+              style="
+                position: absolute;
+                right: 8px;
+                top: 8px;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+              "
+              onclick="toggleFloatingControls()"
+            >
+              <span style="font-size: 0.7rem">◀</span>
+            </button>
+
+            <h4>3D Controls</h4>
+
+            <div class="range-control">
+              <label>Zoom Level</label>
+              <input
+                type="range"
+                id="zoomSlider"
+                min="0.1"
+                max="5"
+                step="0.1"
+                value="1"
+              />
+            </div>
+
+            <div class="range-control">
+              <label>Helix Pitch</label>
+              <input
+                type="range"
+                id="pitchSlider"
+                min="0.5"
+                max="2"
+                step="0.1"
+                value="1"
+              />
+            </div>
+
+            <div class="range-control">
+              <label>Base Size</label>
+              <input
+                type="range"
+                id="baseSizeSlider"
+                min="0.1"
+                max="2"
+                step="0.1"
+                value="1"
+              />
+            </div>
+
+            <div class="btn-group">
+              <button class="btn" onclick="toggleAnimation()">🔄</button>
+              <button class="btn" onclick="centerView()">📍</button>
+            </div>
+          </div>
+
+          <!-- Legend -->
+          <div class="legend" id="legend">
+            <button
+              class="toggle-btn"
+              style="
+                position: absolute;
+                right: 8px;
+                top: 8px;
+                width: 24px;
+                height: 24px;
+                padding: 0;
+              "
+              onclick="toggleLegend()"
+            >
+              <span style="font-size: 0.7rem">▼</span>
+            </button>
+
+            <h4>Base Legend</h4>
+
+            <div class="legend-item">
+              <div class="legend-color" style="background: #ff6b6b"></div>
+              <span>Adenine (A)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background: #4ecdc4"></div>
+              <span>Thymine (T)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background: #45b7d1"></div>
+              <span>Cytosine (C)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background: #f9ca24"></div>
+              <span>Guanine (G)</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background: #6c5ce7"></div>
+              <span>ORF</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background: #fd79a8"></div>
+              <span>CpG Island</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color" style="background: #00b894"></div>
+              <span>Promoter</span>
+            </div>
+          </div>
+
+          <!-- Loading Indicator -->
+          <div id="loadingIndicator" class="loading" style="display: none">
+            <div class="spinner"></div>
+            <p>Processing DNA sequence...</p>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Status Bar -->
+    <footer class="status-bar">
+      <div class="status-item">Ready</div>
+      <div class="status-item" id="sequenceStatus">No sequence loaded</div>
+      <div class="status-item" id="performanceStatus">FPS: --</div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <script>
+      // Global variables
+      let scene, camera, renderer, controls;
+      let dnaGroup, animationId;
+      let currentSequence = "";
+      let analysisData = null;
+      let isAnimating = false;
+      let originalSequence = "";
+      let isResizing = false;
+      let lastFrameTime = Date.now();
+      let frameCount = 0;
+
+      // API configuration
+      const API_BASE = "http://localhost:5000/api";
+
+      // Base colors for DNA visualization
+      const BASE_COLORS = {
+        A: 0xff6b6b, // Red
+        T: 0x4ecdc4, // Teal
+        C: 0x45b7d1, // Blue
+        G: 0xf9ca24, // Yellow
+      };
+
+      // Annotation colors
+      const ANNOTATION_COLORS = {
+        orf: 0x6c5ce7, // Purple
+        cpg_island: 0xfd79a8, // Pink
+        promoter: 0x00b894, // Green
+      };
+
+      // Initialize the application
+      function init() {
+        initThreeJS();
+        setupEventListeners();
+        setupResizeHandle();
+        updateStatus("DNA Visualization System initialized");
+        console.log("DNA Visualization System initialized");
+      }
+
+      // Initialize Three.js scene
+      function initThreeJS() {
+        const container = document.getElementById("threejs-container");
+
+        // Scene setup
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a1929);
+        scene.fog = new THREE.Fog(0x0a1929, 100, 1000);
+
+        // Camera setup
+        camera = new THREE.PerspectiveCamera(
+          75,
+          container.offsetWidth / container.offsetHeight,
+          0.1,
+          1000
+        );
+        camera.position.set(0, 50, 100);
+
+        // Renderer setup
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(container.offsetWidth, container.offsetHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(50, 100, 50);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.mapSize.width = 2048;
+        directionalLight.shadow.mapSize.height = 2048;
+        scene.add(directionalLight);
+
+        // Point lights for dramatic effect
+        const pointLight1 = new THREE.PointLight(0x3b82f6, 0.5, 200);
+        pointLight1.position.set(-50, 50, 50);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0x60a5fa, 0.5, 200);
+        pointLight2.position.set(50, -50, 50);
+        scene.add(pointLight2);
+
+        // Initialize DNA group
+        dnaGroup = new THREE.Group();
+        scene.add(dnaGroup);
+
+        // Mouse controls
+        setupMouseControls(container);
+
+        // Handle window resize
+        window.addEventListener("resize", onWindowResize);
+
+        // Start render loop
+        animate();
+      }
+
+      function setupMouseControls(container) {
+        let isMouseDown = false;
+        let mouseX = 0,
+          mouseY = 0;
+
+        container.addEventListener("mousedown", (e) => {
+          isMouseDown = true;
+          mouseX = e.clientX;
+          mouseY = e.clientY;
+        });
+
+        container.addEventListener("mouseup", () => {
+          isMouseDown = false;
+        });
+
+        container.addEventListener("mousemove", (e) => {
+          if (isMouseDown && dnaGroup) {
+            const deltaX = e.clientX - mouseX;
+            const deltaY = e.clientY - mouseY;
+
+            dnaGroup.rotation.y += deltaX * 0.01;
+            dnaGroup.rotation.x += deltaY * 0.01;
+
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+          }
+        });
+
+        // Wheel zoom
+        container.addEventListener("wheel", (e) => {
+          camera.position.z += e.deltaY * 0.1;
+          camera.position.z = Math.max(10, Math.min(500, camera.position.z));
+          document.getElementById("zoomSlider").value =
+            2 - camera.position.z / 100;
+        });
+      }
+
+      function onWindowResize() {
+        const container = document.getElementById("threejs-container");
+        if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+          camera.aspect = container.offsetWidth / container.offsetHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(container.offsetWidth, container.offsetHeight);
+        }
+      }
+
+      function animate() {
+        animationId = requestAnimationFrame(animate);
+
+        if (isAnimating && dnaGroup) {
+          dnaGroup.rotation.y += 0.005;
+        }
+
+        renderer.render(scene, camera);
+
+        // Update FPS counter
+        frameCount++;
+        const now = Date.now();
+        if (now - lastFrameTime >= 1000) {
+          const fps = Math.round((frameCount * 1000) / (now - lastFrameTime));
+          document.getElementById(
+            "performanceStatus"
+          ).textContent = `FPS: ${fps}`;
+          frameCount = 0;
+          lastFrameTime = now;
+        }
+      }
+
+      // Setup event listeners
+      function setupEventListeners() {
+        // Slider controls
+        document.getElementById("zoomSlider").addEventListener("input", (e) => {
+          camera.position.z = 100 * (2 - parseFloat(e.target.value));
+        });
+
+        document
+          .getElementById("pitchSlider")
+          .addEventListener("input", (e) => {
+            if (currentSequence) {
+              visualizeDNA(currentSequence, analysisData);
+            }
+          });
+
+        document
+          .getElementById("baseSizeSlider")
+          .addEventListener("input", (e) => {
+            if (currentSequence) {
+              visualizeDNA(currentSequence, analysisData);
+            }
+          });
+
+        // File upload
+        document
+          .getElementById("fileInput")
+          .addEventListener("change", handleFileUpload);
+      }
+
+      // Setup resizable sidebar
+      function setupResizeHandle() {
+        const resizeHandle = document.getElementById("resizeHandle");
+        const sidebar = document.getElementById("sidebar");
+
+        resizeHandle.addEventListener("mousedown", (e) => {
+          isResizing = true;
+          document.addEventListener("mousemove", handleResize);
+          document.addEventListener("mouseup", stopResize);
+          resizeHandle.classList.add("dragging");
+        });
+
+        function handleResize(e) {
+          if (!isResizing) return;
+
+          const newWidth = e.clientX;
+          if (newWidth >= 280 && newWidth <= window.innerWidth * 0.5) {
+            sidebar.style.width = newWidth + "px";
+            onWindowResize(); // Update 3D viewport
+          }
+        }
+
+        function stopResize() {
+          isResizing = false;
+          resizeHandle.classList.remove("dragging");
+          document.removeEventListener("mousemove", handleResize);
+          document.removeEventListener("mouseup", stopResize);
+        }
+      }
+
+      // UI Control Functions
+      function toggleSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        const toggleBtn = document.getElementById("toggleSidebar");
+
+        sidebar.classList.toggle("collapsed");
+        toggleBtn.innerHTML = sidebar.classList.contains("collapsed")
+          ? "<span>▶</span>"
+          : "<span>◀</span>";
+
+        setTimeout(() => onWindowResize(), 300); // Delay to allow animation
+      }
+
+      function toggleSection(header) {
+        const section = header.parentElement;
+        const icon = header.querySelector(".collapse-icon");
+
+        section.classList.toggle("collapsed");
+        icon.style.transform = section.classList.contains("collapsed")
+          ? "rotate(-90deg)"
+          : "rotate(0deg)";
+      }
+
+      function toggleFloatingControls() {
+        const controls = document.getElementById("floatingControls");
+        controls.classList.toggle("collapsed");
+      }
+
+      function toggleLegend() {
+        const legend = document.getElementById("legend");
+        legend.classList.toggle("collapsed");
+      }
+
+      function setView(viewType) {
+        // Remove active class from all buttons
+        document.querySelectorAll(".view-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+
+        // Add active class to clicked button
+        event.target.classList.add("active");
+
+        updateStatus(`Switched to ${viewType.toUpperCase()} view`);
+
+        // Here you would implement different view modes
+        // For now, we'll just update the status
+      }
+
+      function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+          updateStatus("Entered fullscreen mode");
+        } else {
+          document.exitFullscreen();
+          updateStatus("Exited fullscreen mode");
+        }
+      }
+
+      function centerView() {
+        if (dnaGroup) {
+          const box = new THREE.Box3().setFromObject(dnaGroup);
+          const center = box.getCenter(new THREE.Vector3());
+          dnaGroup.position.sub(center);
+          updateStatus("View centered");
+        }
+      }
+
+      // File upload handler
+      async function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        showLoading(true);
+        updateStatus(`Loading file: ${file.name}`);
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const response = await fetch(`${API_BASE}/upload`, {
+            method: "POST",
+            body: formData,
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            currentSequence = result.data.sequences
+              ? result.data.sequences[0].sequence
+              : "";
+            originalSequence = currentSequence;
+            updateStats(result.data);
+            visualizeDNA(currentSequence);
+            document.getElementById("sequenceInput").value =
+              currentSequence.substring(0, 500) + "...";
+            updateStatus(`Loaded sequence: ${currentSequence.length} bp`);
+            document.getElementById(
+              "sequenceStatus"
+            ).textContent = `Sequence: ${currentSequence.length} bp`;
+          } else {
+            alert("Error loading file: " + result.error);
+            updateStatus("Error loading file");
+          }
+        } catch (error) {
+          alert("Error uploading file: " + error.message);
+          updateStatus("Upload failed");
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      // Load sequence from textarea
+      async function loadSequence() {
+        const sequence = document.getElementById("sequenceInput").value.trim();
+        if (!sequence) {
+          alert("Please enter a DNA sequence");
+          return;
+        }
+
+        showLoading(true);
+        updateStatus("Loading sequence...");
+
+        try {
+          const response = await fetch(`${API_BASE}/upload`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sequence }),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            currentSequence = sequence.replace(/[^ATCG]/gi, "").toUpperCase();
+            originalSequence = currentSequence;
+            updateStats(result.data);
+            visualizeDNA(currentSequence);
+            updateStatus(`Sequence loaded: ${currentSequence.length} bp`);
+            document.getElementById(
+              "sequenceStatus"
+            ).textContent = `Sequence: ${currentSequence.length} bp`;
+          } else {
+            alert("Error loading sequence: " + result.error);
+            updateStatus("Error loading sequence");
+          }
+        } catch (error) {
+          alert("Error: " + error.message);
+          updateStatus("Load failed");
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      // Load sample data
+      async function loadSampleData() {
+        showLoading(true);
+        updateStatus("Loading sample data...");
+
+        try {
+          const response = await fetch(`${API_BASE}/sample`);
+          const result = await response.json();
+
+          if (result.success) {
+            currentSequence = result.data.sequence || "";
+            originalSequence = currentSequence;
+            updateStats(result.data);
+            visualizeDNA(currentSequence);
+            document.getElementById("sequenceInput").value =
+              currentSequence.substring(0, 500) + "...";
+            updateStatus(`Sample loaded: ${currentSequence.length} bp`);
+            document.getElementById(
+              "sequenceStatus"
+            ).textContent = `Sample: ${currentSequence.length} bp`;
+
+            // Auto-run analysis for sample data
+            setTimeout(() => analyzeSequence(), 1000);
+          } else {
+            alert("Error loading sample: " + result.error);
+            updateStatus("Error loading sample");
+          }
+        } catch (error) {
+          alert("Error: " + error.message);
+          updateStatus("Sample load failed");
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      // Analyze sequence
+      async function analyzeSequence() {
+        if (!currentSequence) {
+          alert("Please load a sequence first");
+          return;
+        }
+
+        showLoading(true);
+        updateStatus("Analyzing sequence...");
+
+        try {
+          const response = await fetch(`${API_BASE}/analyze`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ options: { min_orf_length: 50 } }),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            analysisData = result.data;
+            updateAnalysisStats(analysisData);
+            updateAnnotations(analysisData);
+            visualizeDNA(currentSequence, analysisData);
+            updateStatus("Analysis complete");
+          } else {
+            alert("Error analyzing sequence: " + result.error);
+            updateStatus("Analysis failed");
+          }
+        } catch (error) {
+          alert("Error: " + error.message);
+          updateStatus("Analysis error");
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      // Apply mutation
+      async function applyMutation() {
+        if (!currentSequence) {
+          alert("Please load a sequence first");
+          return;
+        }
+
+        const mutationType = document.getElementById("mutationType").value;
+        const position = parseInt(
+          document.getElementById("mutationPosition").value
+        );
+        const newBase = document.getElementById("newBase").value;
+
+        if (
+          isNaN(position) ||
+          position < 0 ||
+          position >= currentSequence.length
+        ) {
+          alert("Invalid position");
+          return;
+        }
+
+        showLoading(true);
+        updateStatus("Applying mutation...");
+
+        try {
+          const response = await fetch(`${API_BASE}/mutate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: mutationType,
+              position: position,
+              new_base: newBase,
+              insert_seq: mutationType === "insertion" ? newBase : null,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            currentSequence = result.data.new_sequence;
+            updateStats({
+              length: result.data.new_length,
+              gc_content: result.data.new_gc_content,
+            });
+            visualizeDNA(currentSequence, analysisData);
+            updateStatus(`Mutation applied at position ${position}`);
+            document.getElementById(
+              "sequenceStatus"
+            ).textContent = `Modified: ${currentSequence.length} bp`;
+
+            // Re-analyze if we had previous analysis
+            if (analysisData) {
+              setTimeout(() => analyzeSequence(), 500);
+            }
+          } else {
+            alert("Error applying mutation: " + result.error);
+            updateStatus("Mutation failed");
+          }
+        } catch (error) {
+          alert("Error: " + error.message);
+          updateStatus("Mutation error");
+        } finally {
+          showLoading(false);
+        }
+      }
+
+      // Reset mutations
+      function resetMutations() {
+        if (originalSequence) {
+          currentSequence = originalSequence;
+          document.getElementById("sequenceInput").value =
+            currentSequence.substring(0, 500) + "...";
+          visualizeDNA(currentSequence, analysisData);
+          updateStats({
+            length: currentSequence.length,
+            gc_content: calculateGCContent(currentSequence),
+          });
+          updateStatus("Mutations reset");
+          document.getElementById(
+            "sequenceStatus"
+          ).textContent = `Original: ${currentSequence.length} bp`;
+        }
+      }
+
+      // Visualize DNA in 3D
+      function visualizeDNA(sequence, annotations = null) {
+        // Clear existing DNA
+        while (dnaGroup.children.length) {
+          dnaGroup.remove(dnaGroup.children[0]);
+        }
+
+        if (!sequence) return;
+
+        const pitchMultiplier = parseFloat(
+          document.getElementById("pitchSlider").value
+        );
+        const baseSizeMultiplier = parseFloat(
+          document.getElementById("baseSizeSlider").value
+        );
+
+        // DNA helix parameters
+        const radius = 10;
+        const pitch = 3.4 * pitchMultiplier;
+        const basesPerTurn = 10.5;
+        const maxBases = Math.min(sequence.length, 1000); // Limit for performance
+
+        updateStatus(`Visualizing ${maxBases} base pairs...`);
+
+        // Create backbone geometry
+        const backboneGeometry = new THREE.TubeGeometry(
+          new THREE.CatmullRomCurve3(
+            generateHelixPoints(maxBases, radius, pitch, 0)
+          ),
+          Math.floor(maxBases / 2),
+          0.5,
+          8,
+          false
+        );
+        const backboneMaterial = new THREE.MeshPhongMaterial({
+          color: 0x888888,
+          transparent: true,
+          opacity: 0.7,
+        });
+        const backbone1 = new THREE.Mesh(backboneGeometry, backboneMaterial);
+        dnaGroup.add(backbone1);
+
+        // Second backbone (complementary strand)
+        const backbone2Geometry = new THREE.TubeGeometry(
+          new THREE.CatmullRomCurve3(
+            generateHelixPoints(maxBases, radius, pitch, Math.PI)
+          ),
+          Math.floor(maxBases / 2),
+          0.5,
+          8,
+          false
+        );
+        const backbone2 = new THREE.Mesh(backbone2Geometry, backboneMaterial);
+        dnaGroup.add(backbone2);
+
+        // Create base pairs
+        for (let i = 0; i < maxBases; i++) {
+          const base = sequence[i];
+          if (!base || !BASE_COLORS[base]) continue;
+
+          const angle = (i / basesPerTurn) * 2 * Math.PI;
+          const y = i * pitch;
+
+          // Create base geometry
+          const baseGeometry = new THREE.SphereGeometry(
+            1.5 * baseSizeMultiplier,
+            8,
+            6
+          );
+
+          // Check for annotations
+          let baseColor = BASE_COLORS[base];
+          if (annotations) {
+            const annotationColor = getAnnotationColorForPosition(
+              i,
+              annotations
+            );
+            if (annotationColor) {
+              baseColor = annotationColor;
+            }
+          }
+
+          const baseMaterial = new THREE.MeshPhongMaterial({
+            color: baseColor,
+            shininess: 30,
+          });
+
+          // First strand base
+          const base1 = new THREE.Mesh(baseGeometry, baseMaterial);
+          base1.position.set(
+            Math.cos(angle) * radius,
+            y,
+            Math.sin(angle) * radius
+          );
+          dnaGroup.add(base1);
+
+          // Complementary base
+          const complementBase = getComplementaryBase(base);
+          const complementMaterial = new THREE.MeshPhongMaterial({
+            color: BASE_COLORS[complementBase],
+            shininess: 30,
+          });
+          const base2 = new THREE.Mesh(baseGeometry, complementMaterial);
+          base2.position.set(
+            Math.cos(angle + Math.PI) * radius,
+            y,
+            Math.sin(angle + Math.PI) * radius
+          );
+          dnaGroup.add(base2);
+
+          // Hydrogen bonds between base pairs
+          const bondGeometry = new THREE.CylinderGeometry(
+            0.1,
+            0.1,
+            radius * 2,
+            8
+          );
+          const bondMaterial = new THREE.MeshPhongMaterial({
+            color: 0xcccccc,
+            transparent: true,
+            opacity: 0.6,
+          });
+          const bond = new THREE.Mesh(bondGeometry, bondMaterial);
+          bond.position.set(0, y, 0);
+          bond.rotation.z = Math.PI / 2;
+          bond.rotation.y = angle;
+          dnaGroup.add(bond);
+        }
+
+        // Center the DNA model
+        const box = new THREE.Box3().setFromObject(dnaGroup);
+        const center = box.getCenter(new THREE.Vector3());
+        dnaGroup.position.sub(center);
+
+        updateStatus(`Visualized ${maxBases} base pairs`);
+        console.log(`Visualized ${maxBases} base pairs`);
+      }
+
+      // Generate helix curve points
+      function generateHelixPoints(length, radius, pitch, phaseOffset) {
+        const points = [];
+        const basesPerTurn = 10.5;
+
+        for (let i = 0; i <= length; i += 2) {
+          const angle = (i / basesPerTurn) * 2 * Math.PI + phaseOffset;
+          const y = i * pitch;
+          points.push(
+            new THREE.Vector3(
+              Math.cos(angle) * radius,
+              y,
+              Math.sin(angle) * radius
+            )
+          );
+        }
+
+        return points;
+      }
+
+      // Get complementary base
+      function getComplementaryBase(base) {
+        const complements = { A: "T", T: "A", C: "G", G: "C" };
+        return complements[base] || "A";
+      }
+
+      // Get annotation color for position
+      function getAnnotationColorForPosition(position, annotations) {
+        if (!annotations) return null;
+
+        // Check ORFs
+        for (const orf of annotations.orfs || []) {
+          if (position >= orf.start && position <= orf.end) {
+            return ANNOTATION_COLORS.orf;
+          }
+        }
+
+        // Check CpG islands
+        for (const cpg of annotations.cpg_islands || []) {
+          if (position >= cpg.start && position <= cpg.end) {
+            return ANNOTATION_COLORS.cpg_island;
+          }
+        }
+
+        // Check promoters
+        for (const promoter of annotations.promoters || []) {
+          if (position >= promoter.start && position <= promoter.end) {
+            return ANNOTATION_COLORS.promoter;
+          }
+        }
+
+        return null;
+      }
+
+      // Update basic statistics
+      function updateStats(data) {
+        document.getElementById("lengthStat").textContent =
+          data.length?.toLocaleString() || "0";
+        document.getElementById("gcStat").textContent =
+          (data.gc_content?.toFixed(1) || "0") + "%";
+      }
+
+      // Update analysis statistics
+      function updateAnalysisStats(data) {
+        document.getElementById("orfStat").textContent =
+          data.orfs?.length || "0";
+        document.getElementById("cpgStat").textContent =
+          data.cpg_islands?.length || "0";
+      }
+
+      // Update annotations display
+      function updateAnnotations(data) {
+        const container = document.getElementById("annotationList");
+        container.innerHTML = "";
+
+        let annotationCount = 0;
+
+        // Add ORFs
+        if (data.orfs && data.orfs.length > 0) {
+          data.orfs.slice(0, 5).forEach((orf, index) => {
+            const item = document.createElement("div");
+            item.className = "annotation-item";
+            item.innerHTML = `
+              <strong>ORF ${index + 1}</strong><br>
+              Position: ${orf.start}-${orf.end} (${orf.length} bp)<br>
+              Strand: ${orf.strand > 0 ? "+" : "-"}, Frame: ${orf.frame}
+            `;
+            container.appendChild(item);
+            annotationCount++;
+          });
+        }
+
+        // Add CpG islands
+        if (data.cpg_islands && data.cpg_islands.length > 0) {
+          data.cpg_islands.slice(0, 3).forEach((cpg, index) => {
+            const item = document.createElement("div");
+            item.className = "annotation-item";
+            item.style.borderLeftColor = "#fd79a8";
+            item.innerHTML = `
+              <strong>CpG Island ${index + 1}</strong><br>
+              Position: ${cpg.start}-${cpg.end}<br>
+              GC: ${cpg.gc_content?.toFixed(1)}%, CpGs: ${cpg.cpg_count}
+            `;
+            container.appendChild(item);
+            annotationCount++;
+          });
+        }
+
+        // Add promoters
+        if (data.promoters && data.promoters.length > 0) {
+          data.promoters.slice(0, 3).forEach((promoter, index) => {
+            const item = document.createElement("div");
+            item.className = "annotation-item";
+            item.style.borderLeftColor = "#00b894";
+            item.innerHTML = `
+              <strong>Promoter ${index + 1}</strong><br>
+              Position: ${promoter.start}-${promoter.end}<br>
+              TATA: ${promoter.tata_start}-${promoter.tata_end}
+            `;
+            container.appendChild(item);
+            annotationCount++;
+          });
+        }
+
+        if (annotationCount === 0) {
+          container.innerHTML =
+            '<p style="color: #94a3b8; font-size: 0.85rem; text-align: center; padding: 1rem;">No annotations found</p>';
+        }
+      }
+
+      // Utility functions
+      function calculateGCContent(sequence) {
+        if (!sequence) return 0;
+        const gcCount = (sequence.match(/[GC]/g) || []).length;
+        return (gcCount / sequence.length) * 100;
+      }
+
+      function showLoading(show) {
+        document.getElementById("loadingIndicator").style.display = show
+          ? "block"
+          : "none";
+      }
+
+      function updateStatus(message) {
+        document.querySelector(".status-bar .status-item").textContent =
+          message;
+      }
+
+      function resetCamera() {
+        camera.position.set(0, 50, 100);
+        camera.lookAt(0, 0, 0);
+        if (dnaGroup) {
+          dnaGroup.rotation.set(0, 0, 0);
+        }
+        document.getElementById("zoomSlider").value = 1;
+        updateStatus("Camera reset");
+      }
+
+      function toggleAnimation() {
+        isAnimating = !isAnimating;
+        updateStatus(isAnimating ? "Animation started" : "Animation stopped");
+      }
+
+      // Export functions
+      function exportPNG() {
+        if (!renderer) {
+          alert("3D view not initialized");
+          return;
+        }
+
+        renderer.render(scene, camera);
+        const canvas = renderer.domElement;
+        const link = document.createElement("a");
+        link.download = "dna_visualization.png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+        updateStatus("PNG exported");
+      }
+
+      // This function creates a visual 3D model from the currently loaded DNA sequence.
+      async function exportGLTF() {
+        // 1. Check if a sequence is loaded in the app.
+        if (!currentSequence) {
+          alert(
+            "Please load a DNA sequence first before exporting a 3D model."
+          );
+          updateStatus("3D export failed: No sequence loaded.");
+          return;
+        }
+
+        updateStatus("Generating visual 3D helix model...");
+        showLoading(true);
+
+        try {
+          // Create a new, temporary Three.js scene for the export.
+          const exportScene = new THREE.Scene();
+
+          // Use your existing visualization logic to build the helix.
+          const pitchMultiplier = parseFloat(
+            document.getElementById("pitchSlider").value
+          );
+          const radius = 10;
+          const pitch = 3.4 * pitchMultiplier;
+          const basesPerTurn = 10.5;
+
+          // Build the helix model (this logic is simplified from your main vis for clarity)
+          for (let i = 0; i < currentSequence.length; i++) {
+            const base = currentSequence[i];
+            const angle = (i / basesPerTurn) * 2 * Math.PI;
+            const y = i * (pitch / basesPerTurn);
+
+            let baseColor = BASE_COLORS[base] || 0xcccccc;
+            if (analysisData) {
+              const annotationColor = getAnnotationColorForPosition(
+                i,
+                analysisData
+              );
+              if (annotationColor) baseColor = annotationColor;
+            }
+            const baseMaterial = new THREE.MeshStandardMaterial({
+              color: baseColor,
+            });
+            const baseGeometry = new THREE.SphereGeometry(1.5, 8, 6);
+
+            // First base
+            const base1 = new THREE.Mesh(baseGeometry, baseMaterial);
+            base1.position.set(
+              Math.cos(angle) * radius,
+              y,
+              Math.sin(angle) * radius
+            );
+            exportScene.add(base1);
+          }
+
+          // Use the GLTFExporter, which will now be defined.
+          const exporter = new THREE.GLTFExporter();
+
+          // The exporter uses a callback function when it's done.
+          exporter.parse(
+            exportScene,
+            function (gltf) {
+              // This code runs when the export is complete.
+              const gltfString = JSON.stringify(gltf);
+              const blob = new Blob([gltfString], {
+                type: "application/gltf-buffer",
+              });
+              const url = URL.createObjectURL(blob);
+
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "dna_visual_model.gltf"; // Save as .gltf
+              link.click();
+              URL.revokeObjectURL(url);
+
+              showLoading(false);
+              updateStatus("3D visual model exported successfully!");
+            },
+            // This code runs if there is an error during export.
+            function (error) {
+              showLoading(false);
+              console.error("An error happened during GLTF export:", error);
+              alert("Failed to export 3D model.");
+              updateStatus("3D model export failed.");
+            }
+          );
+        } catch (error) {
+          showLoading(false);
+          alert("Error creating 3D model: " + error.message);
+          updateStatus("3D model export error.");
+          console.error("exportGLTF Error:", error);
+        }
+      }
+      async function exportFASTA() {
+        if (!currentSequence) {
+          alert("No sequence to export");
+          return;
+        }
+
+        try {
+          const response = await fetch(`${API_BASE}/export/fasta`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: "exported_sequence",
+              description: "DNA sequence from visualization tool",
+            }),
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "sequence.fasta";
+            link.click();
+            window.URL.revokeObjectURL(url);
+            updateStatus("FASTA exported");
+          } else {
+            alert("Error exporting FASTA file");
+            updateStatus("FASTA export failed");
+          }
+        } catch (error) {
+          alert("Error: " + error.message);
+          updateStatus("FASTA export error");
+        }
+      }
+
+      function exportData() {
+        if (!analysisData) {
+          alert("No analysis data to export");
+          return;
+        }
+
+        const data = {
+          sequence: currentSequence,
+          analysis: analysisData,
+          export_date: new Date().toISOString(),
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: "application/json",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "dna_analysis.json";
+        link.click();
+        window.URL.revokeObjectURL(url);
+        updateStatus("Analysis data exported");
+      }
+
+      // Initialize when page loads
+      document.addEventListener("DOMContentLoaded", init);
+
+      // Handle sidebar toggle on mobile
+      document
+        .getElementById("toggleSidebar")
+        .addEventListener("click", toggleSidebar);
+    </script>
+  </body>
+</html>
